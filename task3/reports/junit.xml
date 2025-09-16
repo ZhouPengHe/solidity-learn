@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Mocha Tests" time="1.678" tests="7" failures="0">
+  <testsuite name="Root Suite" timestamp="2025-09-16T14:17:35" tests="0" time="0.000" failures="0">
+  </testsuite>
+  <testsuite name="拍卖端" timestamp="2025-09-16T14:17:35" tests="6" file="D:\cursor\workspaces\solidity-learn\task3\test\auction.test.js" time="1.587" failures="0">
+    <testcase name="拍卖端 创建拍卖，使用 ETH 出价并结束" time="1.075" classname="创建拍卖，使用 ETH 出价并结束">
+    </testcase>
+    <testcase name="拍卖端 创建拍卖，使用 ERC20 出价并结算手续费" time="0.123" classname="创建拍卖，使用 ERC20 出价并结算手续费">
+    </testcase>
+    <testcase name="拍卖端 ERC20 18 位小数出价：USD 报价正确，超价退款" time="0.108" classname="ERC20 18 位小数出价：USD 报价正确，超价退款">
+    </testcase>
+    <testcase name="拍卖端 ERC20 负面用例：未授权、低价、已过期" time="0.113" classname="ERC20 负面用例：未授权、低价、已过期">
+    </testcase>
+    <testcase name="拍卖端 CCIP 占位开关工作" time="0.070" classname="CCIP 占位开关工作">
+    </testcase>
+    <testcase name="拍卖端 CCIP PoC：发送请求事件并由执行器转发 ETH 出价" time="0.089" classname="CCIP PoC：发送请求事件并由执行器转发 ETH 出价">
+    </testcase>
+  </testsuite>
+  <testsuite name="UUPS 升级演示" timestamp="2025-09-16T14:17:36" tests="1" file="D:\cursor\workspaces\solidity-learn\task3\test\upgrade.test.js" time="0.084" failures="0">
+    <testcase name="UUPS 升级演示 将拍卖代理升级到 V2 且保持状态" time="0.083" classname="将拍卖代理升级到 V2 且保持状态">
+    </testcase>
+  </testsuite>
+</testsuites>

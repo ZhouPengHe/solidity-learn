@@ -1,0 +1,242 @@
+{
+  "stats": {
+    "suites": 2,
+    "tests": 7,
+    "passes": 7,
+    "pending": 0,
+    "failures": 0,
+    "start": "2025-09-16T14:17:35.346Z",
+    "end": "2025-09-16T14:17:37.024Z",
+    "duration": 1678,
+    "testsRegistered": 7,
+    "passPercent": 100,
+    "pendingPercent": 0,
+    "other": 0,
+    "hasOther": false,
+    "skipped": 0,
+    "hasSkipped": false
+  },
+  "results": [
+    {
+      "uuid": "4d98f5d5-082d-4558-9878-dc1c444a3fe3",
+      "title": "",
+      "fullFile": "",
+      "file": "",
+      "beforeHooks": [],
+      "afterHooks": [],
+      "tests": [],
+      "suites": [
+        {
+          "uuid": "800f7a6d-ca97-416b-b3b7-e0ec20381943",
+          "title": "拍卖端",
+          "fullFile": "D:\\cursor\\workspaces\\solidity-learn\\task3\\test\\auction.test.js",
+          "file": "\\test\\auction.test.js",
+          "beforeHooks": [],
+          "afterHooks": [],
+          "tests": [
+            {
+              "title": "创建拍卖，使用 ETH 出价并结束",
+              "fullTitle": "拍卖端 创建拍卖，使用 ETH 出价并结束",
+              "timedOut": false,
+              "duration": 1075,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const [deployer, seller, bidder1, bidder2] = await ethers.getSigners();\n// 部署 NFT 可升级\nconst NFT = await ethers.getContractFactory(\"NFTUpgradeable\");\nconst nft = await upgrades.deployProxy(NFT, [\"DemoNFT\", \"DNFT\", \"https://base/\"], { initializer: \"initialize\" });\nawait nft.waitForDeployment();\n// 给卖家铸造 1 个 NFT\nawait (await nft.connect(deployer).safeMint(seller.address)).wait();\nconst tokenId = 1;\n// 部署拍卖实现\nconst Impl = await ethers.getContractFactory(\"AuctionImplementation\");\nconst implementation = await Impl.deploy();\nawait implementation.waitForDeployment();\n// 部署工厂\nconst Factory = await ethers.getContractFactory(\"AuctionFactory\");\nconst factory = await Factory.deploy(await implementation.getAddress());\nawait factory.waitForDeployment();\n// 卖家授权工厂转移 NFT\nawait (await nft.connect(seller).approve(await factory.getAddress(), tokenId)).wait();\n// 创建拍卖（支付资产为 ETH: address(0)）\nconst duration = 3 * 60; // 3 分钟\nconst startPrice = ethers.parseEther(\"0.01\");\nconst tx = await factory.connect(seller).createAuction(await nft.getAddress(), tokenId, duration, startPrice, ethers.ZeroAddress);\nconst rc = await tx.wait();\nconst evt = rc.logs.find((l) => l.fragment && l.fragment.name === \"AuctionDeployed\");\nconst proxyAddr = evt.args[0];\nconst auction = await ethers.getContractAt(\"AuctionImplementation\", proxyAddr);\n// 设置 ETH/USD 预言机，避免报价时失败（使用不同变量名避免重名）\nconst MockFeed2 = await ethers.getContractFactory(\"MockV3Aggregator\");\nconst ethFeed2 = await MockFeed2.deploy(8, 2000n * 10n ** 8n);\nawait ethFeed2.waitForDeployment();\nawait (await factory.setAuctionPriceFeed(proxyAddr, ethers.ZeroAddress, await ethFeed2.getAddress())).wait();\n// 已设置喂价\n// 出价 1：0.02 ETH（bidder1）\nawait (await auction.connect(bidder1).bid(0, { value: ethers.parseEther(\"0.02\") })).wait();\n// 出价 2：0.03 ETH（bidder2）\nawait (await auction.connect(bidder2).bid(0, { value: ethers.parseEther(\"0.03\") })).wait();\n// 增加时间并结束拍卖\nawait ethers.provider.send(\"evm_increaseTime\", [duration + 1]);\nawait ethers.provider.send(\"evm_mine\", []);\nawait (await auction.endAuction()).wait();\n// 验证 NFT 到达 bidder2\nexpect(await nft.ownerOf(tokenId)).to.eq(bidder2.address);",
+              "err": {},
+              "uuid": "9a28a327-5f42-4689-94d0-34c2872078aa",
+              "parentUUID": "800f7a6d-ca97-416b-b3b7-e0ec20381943",
+              "isHook": false,
+              "skipped": false
+            },
+            {
+              "title": "创建拍卖，使用 ERC20 出价并结算手续费",
+              "fullTitle": "拍卖端 创建拍卖，使用 ERC20 出价并结算手续费",
+              "timedOut": false,
+              "duration": 123,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const [deployer, seller, bidder1, bidder2, fee] = await ethers.getSigners();\n// NFT\nconst NFT = await ethers.getContractFactory(\"NFTUpgradeable\");\nconst nft = await upgrades.deployProxy(NFT, [\"DemoNFT\", \"DNFT\", \"https://base/\"], { initializer: \"initialize\" });\nawait nft.waitForDeployment();\nawait (await nft.safeMint(seller.address)).wait();\nconst tokenId = 1;\n// ERC20\nconst ERC20 = await ethers.getContractFactory(\"MockERC20\");\nconst usdc = await ERC20.deploy(\"MockUSDC\", \"mUSDC\", 6);\nawait usdc.waitForDeployment();\n// 给两个出价者一些余额\nawait (await usdc.transfer(bidder1.address, 100_000n * 10n ** 6n)).wait();\nawait (await usdc.transfer(bidder2.address, 100_000n * 10n ** 6n)).wait();\n// 实现与工厂\nconst Impl = await ethers.getContractFactory(\"AuctionImplementation\");\nconst implementation = await Impl.deploy();\nawait implementation.waitForDeployment();\nconst Factory = await ethers.getContractFactory(\"AuctionFactory\");\nconst factory = await Factory.deploy(await implementation.getAddress());\nawait factory.waitForDeployment();\n// 授权 NFT 给工厂\nawait (await nft.connect(seller).approve(await factory.getAddress(), tokenId)).wait();\n// 创建拍卖（支付代币为 USDC）\nconst duration = 60;\nconst startPrice = 1_000_000n; // 1 USDC，6 位\nconst tx = await factory.connect(seller).createAuction(await nft.getAddress(), tokenId, duration, startPrice, await usdc.getAddress());\nconst rc = await tx.wait();\nconst evt = rc.logs.find((l) => l.fragment && l.fragment.name === \"AuctionDeployed\");\nconst proxyAddr = evt.args[0];\nconst auction = await ethers.getContractAt(\"AuctionImplementation\", proxyAddr);\n// 设置 USDC/USD 预言机（8 位，1.00 美元 => 1e8）\nconst Mock = await ethers.getContractFactory(\"MockV3Aggregator\");\nconst usdcFeed = await Mock.deploy(8, 1n * 10n ** 8n);\nawait usdcFeed.waitForDeployment();\nawait (await factory.setAuctionPriceFeed(proxyAddr, await usdc.getAddress(), await usdcFeed.getAddress())).wait();\n// 设置手续费 2% 到 fee 地址（通过工厂）\nawait (await factory.setAuctionFeeConfig(proxyAddr, fee.address, 200)).wait();\n// 两个用户授权 USDC 给拍卖合约\nawait (await usdc.connect(bidder1).approve(proxyAddr, 1_000_000_000n)).wait();\nawait (await usdc.connect(bidder2).approve(proxyAddr, 1_000_000_000n)).wait();\n// 连续出价\nawait (await auction.connect(bidder1).bid(2_000_000n)).wait(); // 2 USDC\nawait (await auction.connect(bidder2).bid(3_000_000n)).wait(); // 3 USDC\n// 结束\nawait ethers.provider.send(\"evm_increaseTime\", [duration + 1]);\nawait ethers.provider.send(\"evm_mine\", []);\nconst feeBalBefore = await usdc.balanceOf(fee.address);\nawait (await auction.endAuction()).wait();\n// 验证持有人与手续费到账\nexpect(await nft.ownerOf(tokenId)).to.eq(bidder2.address);\nconst feeBalAfter = await usdc.balanceOf(fee.address);\nexpect(feeBalAfter - feeBalBefore).to.eq(60_000n); // 3_000_000 * 2% = 60_000",
+              "err": {},
+              "uuid": "edd09886-e224-411f-b076-6e48ad699ed4",
+              "parentUUID": "800f7a6d-ca97-416b-b3b7-e0ec20381943",
+              "isHook": false,
+              "skipped": false
+            },
+            {
+              "title": "ERC20 18 位小数出价：USD 报价正确，超价退款",
+              "fullTitle": "拍卖端 ERC20 18 位小数出价：USD 报价正确，超价退款",
+              "timedOut": false,
+              "duration": 108,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const [deployer, seller, bidder1, bidder2] = await ethers.getSigners();\n// NFT\nconst NFT = await ethers.getContractFactory(\"NFTUpgradeable\");\nconst nft = await upgrades.deployProxy(NFT, [\"DemoNFT\", \"DNFT\", \"https://base/\"], { initializer: \"initialize\" });\nawait nft.waitForDeployment();\nawait (await nft.safeMint(seller.address)).wait();\nconst tokenId = 1;\n// 18 位小数的 ERC20\nconst ERC20 = await ethers.getContractFactory(\"MockERC20\");\nconst dai = await ERC20.deploy(\"MockDAI\", \"mDAI\", 18);\nawait dai.waitForDeployment();\n// 分配余额\nawait (await dai.transfer(bidder1.address, 100_000n * 10n ** 18n)).wait();\nawait (await dai.transfer(bidder2.address, 100_000n * 10n ** 18n)).wait();\n// 实现合约与工厂\nconst Impl = await ethers.getContractFactory(\"AuctionImplementation\");\nconst implementation = await Impl.deploy();\nawait implementation.waitForDeployment();\nconst Factory = await ethers.getContractFactory(\"AuctionFactory\");\nconst factory = await Factory.deploy(await implementation.getAddress());\nawait factory.waitForDeployment();\n// 授权 NFT 给工厂\nawait (await nft.connect(seller).approve(await factory.getAddress(), tokenId)).wait();\n// 创建拍卖（支付代币 DAI）\nconst duration = 60;\nconst startPrice = 1n * 10n ** 18n; // 1 DAI\nconst tx = await factory.connect(seller).createAuction(await nft.getAddress(), tokenId, duration, startPrice, await dai.getAddress());\nconst rc = await tx.wait();\nconst evt = rc.logs.find((l) => l.fragment && l.fragment.name === \"AuctionDeployed\");\nconst proxyAddr = evt.args[0];\nconst auction = await ethers.getContractAt(\"AuctionImplementation\", proxyAddr);\n// 设置喂价：1.00 USD（8 位小数）\nconst Mock = await ethers.getContractFactory(\"MockV3Aggregator\");\nconst daiFeed = await Mock.deploy(8, 1n * 10n ** 8n);\nawait daiFeed.waitForDeployment();\nawait (await factory.setAuctionPriceFeed(proxyAddr, await dai.getAddress(), await daiFeed.getAddress())).wait();\n// 代币授权\nawait (await dai.connect(bidder1).approve(proxyAddr, 1_000_000n * 10n ** 18n)).wait();\nawait (await dai.connect(bidder2).approve(proxyAddr, 1_000_000n * 10n ** 18n)).wait();\n// 第一次出价：5 DAI\nconst bidder1BalBefore = await dai.balanceOf(bidder1.address);\nlet bidTx = await auction.connect(bidder1).bid(5n * 10n ** 18n);\nlet bidRc = await bidTx.wait();\nlet bidEvt = bidRc.logs.find((l) => l.fragment && l.fragment.name === \"BidPlaced\");\nexpect(bidEvt.args[1]).to.eq(5n * 10n ** 18n); // amount\nexpect(bidEvt.args[2]).to.eq(5n * 10n ** 8n); // usd 1e8\nconst bidder1BalAfterFirst = await dai.balanceOf(bidder1.address);\nexpect(bidder1BalBefore - bidder1BalAfterFirst).to.eq(5n * 10n ** 18n);\n// 第二次出价：6 DAI（bidder2）-> 退款给 bidder1 5 DAI\nconst bidder1BalBeforeRefund = await dai.balanceOf(bidder1.address);\nawait (await auction.connect(bidder2).bid(6n * 10n ** 18n)).wait();\nconst bidder1BalAfterRefund = await dai.balanceOf(bidder1.address);\nexpect(bidder1BalAfterRefund - bidder1BalBeforeRefund).to.eq(5n * 10n ** 18n);\n// 结束\nawait ethers.provider.send(\"evm_increaseTime\", [duration + 1]);\nawait ethers.provider.send(\"evm_mine\", []);\nawait (await auction.endAuction()).wait();\nexpect(await nft.ownerOf(tokenId)).to.eq(bidder2.address);",
+              "err": {},
+              "uuid": "72507098-3463-4596-96de-13e163bf36dc",
+              "parentUUID": "800f7a6d-ca97-416b-b3b7-e0ec20381943",
+              "isHook": false,
+              "skipped": false
+            },
+            {
+              "title": "ERC20 负面用例：未授权、低价、已过期",
+              "fullTitle": "拍卖端 ERC20 负面用例：未授权、低价、已过期",
+              "timedOut": false,
+              "duration": 113,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const [deployer, seller, bidder] = await ethers.getSigners();\n// NFT\nconst NFT = await ethers.getContractFactory(\"NFTUpgradeable\");\nconst nft = await upgrades.deployProxy(NFT, [\"DemoNFT\", \"DNFT\", \"https://base/\"], { initializer: \"initialize\" });\nawait nft.waitForDeployment();\nawait (await nft.safeMint(seller.address)).wait();\nconst tokenId = 1;\n// ERC20 6 decimals\nconst ERC20 = await ethers.getContractFactory(\"MockERC20\");\nconst usdc = await ERC20.deploy(\"MockUSDC\", \"mUSDC\", 6);\nawait usdc.waitForDeployment();\nawait (await usdc.transfer(bidder.address, 1_000_000n * 10n ** 6n)).wait();\n// impl + factory\nconst Impl = await ethers.getContractFactory(\"AuctionImplementation\");\nconst implementation = await Impl.deploy();\nawait implementation.waitForDeployment();\nconst Factory = await ethers.getContractFactory(\"AuctionFactory\");\nconst factory = await Factory.deploy(await implementation.getAddress());\nawait factory.waitForDeployment();\nawait (await nft.connect(seller).approve(await factory.getAddress(), tokenId)).wait();\nconst duration = 30;\nconst startPrice = 1_000_000n; // 1 USDC\nconst tx = await factory.connect(seller).createAuction(await nft.getAddress(), tokenId, duration, startPrice, await usdc.getAddress());\nconst rc = await tx.wait();\nconst evt = rc.logs.find((l) => l.fragment && l.fragment.name === \"AuctionDeployed\");\nconst proxyAddr = evt.args[0];\nconst auction = await ethers.getContractAt(\"AuctionImplementation\", proxyAddr);\n// 设置喂价\nconst Mock = await ethers.getContractFactory(\"MockV3Aggregator\");\nconst feed = await Mock.deploy(8, 1n * 10n ** 8n);\nawait feed.waitForDeployment();\nawait (await factory.setAuctionPriceFeed(proxyAddr, await usdc.getAddress(), await feed.getAddress())).wait();\n// 1) 未授权 approve -> transferFrom 失败（使用 try/catch 断言）\nlet failed = false;\ntry {\n\tawait auction.connect(bidder).bid(2_000_000n);\n} catch (e) {\n\tfailed = true;\n}\nexpect(failed).to.eq(true);\n// 授权最小额度并按起拍价出价成功\nawait (await usdc.connect(bidder).approve(proxyAddr, 2_000_000n)).wait();\nawait (await auction.connect(bidder).bid(1_000_000n)).wait();\n// 2) 低于当前要求的出价\nfailed = false;\ntry {\n\tawait auction.connect(bidder).bid(1_000_000n);\n} catch (e) {\n\tfailed = true;\n}\nexpect(failed).to.eq(true);\n// 3) 已过期\nawait ethers.provider.send(\"evm_increaseTime\", [duration + 1]);\nawait ethers.provider.send(\"evm_mine\", []);\nfailed = false;\ntry {\n\tawait auction.connect(bidder).bid(2_000_000n);\n} catch (e) {\n\tfailed = true;\n}\nexpect(failed).to.eq(true);",
+              "err": {},
+              "uuid": "9d2a57d8-31cf-4a86-b65d-802f260ebb60",
+              "parentUUID": "800f7a6d-ca97-416b-b3b7-e0ec20381943",
+              "isHook": false,
+              "skipped": false
+            },
+            {
+              "title": "CCIP 占位开关工作",
+              "fullTitle": "拍卖端 CCIP 占位开关工作",
+              "timedOut": false,
+              "duration": 70,
+              "state": "passed",
+              "speed": "medium",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const [deployer, seller] = await ethers.getSigners();\nconst NFT = await ethers.getContractFactory(\"NFTUpgradeable\");\nconst nft = await upgrades.deployProxy(NFT, [\"DemoNFT\", \"DNFT\", \"https://base/\"], { initializer: \"initialize\" });\nawait nft.waitForDeployment();\nawait (await nft.safeMint(seller.address)).wait();\nconst tokenId = 1;\nconst Impl = await ethers.getContractFactory(\"AuctionImplementation\");\nconst implementation = await Impl.deploy();\nawait implementation.waitForDeployment();\nconst Factory = await ethers.getContractFactory(\"AuctionFactory\");\nconst factory = await Factory.deploy(await implementation.getAddress());\nawait factory.waitForDeployment();\nawait (await nft.connect(seller).approve(await factory.getAddress(), tokenId)).wait();\nconst tx = await factory.connect(seller).createAuction(await nft.getAddress(), tokenId, 30, 1, ethers.ZeroAddress);\nconst rc = await tx.wait();\nconst evt = rc.logs.find((l) => l.fragment && l.fragment.name === \"AuctionDeployed\");\nconst proxyAddr = evt.args[0];\nconst auction = await ethers.getContractAt(\"AuctionImplementation\", proxyAddr);\n// 默认为 false\nexpect(await auction.sendCrossChainBid(\"0x\"))\n\t.to.eq(false);\n// 保持占位：不做配置与跨链，仅断言默认 false",
+              "err": {},
+              "uuid": "4381205a-56ad-46fa-a852-52b5d77a5060",
+              "parentUUID": "800f7a6d-ca97-416b-b3b7-e0ec20381943",
+              "isHook": false,
+              "skipped": false
+            },
+            {
+              "title": "CCIP PoC：发送请求事件并由执行器转发 ETH 出价",
+              "fullTitle": "拍卖端 CCIP PoC：发送请求事件并由执行器转发 ETH 出价",
+              "timedOut": false,
+              "duration": 89,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const [deployer, seller, bidder] = await ethers.getSigners();\nconst NFT = await ethers.getContractFactory(\"NFTUpgradeable\");\nconst nft = await upgrades.deployProxy(NFT, [\"DemoNFT\", \"DNFT\", \"https://base/\"], { initializer: \"initialize\" });\nawait nft.waitForDeployment();\nawait (await nft.safeMint(seller.address)).wait();\nconst tokenId = 1;\nconst Impl = await ethers.getContractFactory(\"AuctionImplementation\");\nconst implementation = await Impl.deploy();\nawait implementation.waitForDeployment();\nconst Factory = await ethers.getContractFactory(\"AuctionFactory\");\nconst factory = await Factory.deploy(await implementation.getAddress());\nawait factory.waitForDeployment();\nawait (await nft.connect(seller).approve(await factory.getAddress(), tokenId)).wait();\nconst tx = await factory.connect(seller).createAuction(await nft.getAddress(), tokenId, 30, ethers.parseEther(\"0.01\"), ethers.ZeroAddress);\nconst rc = await tx.wait();\nconst evt = rc.logs.find((l) => l.fragment && l.fragment.name === \"AuctionDeployed\");\nconst proxyAddr = evt.args[0];\nconst auction = await ethers.getContractAt(\"AuctionImplementation\", proxyAddr);\n// 通过工厂转发设置 CCIP 配置\nawait (await factory.setAuctionCcipConfig(proxyAddr, deployer.address, true)).wait();\n// 监听事件并发送请求\nconst payload = ethers.AbiCoder.defaultAbiCoder().encode([\n\t\"tuple(address auctionProxy, bool isEth, uint256 amount)\"\n], [[proxyAddr, true, ethers.parseEther(\"0.02\")]]);\nconst req = await auction.connect(deployer).sendCrossChainBidRequest(payload);\nawait req.wait();\n// 目标链执行器在本链模拟执行\nconst Exec = await ethers.getContractFactory(\"CcipBidExecutor\");\nconst exec = await Exec.deploy();\nawait exec.waitForDeployment();\n// 确保该拍卖已设置 ETH/USD 喂价\nconst MockFeed3 = await ethers.getContractFactory(\"MockV3Aggregator\");\nconst ethFeed3 = await MockFeed3.deploy(8, 2000n * 10n ** 8n);\nawait ethFeed3.waitForDeployment();\nawait (await factory.setAuctionPriceFeed(proxyAddr, ethers.ZeroAddress, await ethFeed3.getAddress())).wait();\nawait (await exec.execute(payload, { value: ethers.parseEther(\"0.02\") })).wait();\n// 最高价应为 0.02 ETH\nconst info = await auction.auction();\nexpect(info.highestBid).to.eq(ethers.parseEther(\"0.02\"));",
+              "err": {},
+              "uuid": "16dfc11a-5a3e-4e6e-983c-33f6e5f73113",
+              "parentUUID": "800f7a6d-ca97-416b-b3b7-e0ec20381943",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "9a28a327-5f42-4689-94d0-34c2872078aa",
+            "edd09886-e224-411f-b076-6e48ad699ed4",
+            "72507098-3463-4596-96de-13e163bf36dc",
+            "9d2a57d8-31cf-4a86-b65d-802f260ebb60",
+            "4381205a-56ad-46fa-a852-52b5d77a5060",
+            "16dfc11a-5a3e-4e6e-983c-33f6e5f73113"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 1578,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 60000
+        },
+        {
+          "uuid": "937e447b-6f37-4c22-aacc-b36f01a53949",
+          "title": "UUPS 升级演示",
+          "fullFile": "D:\\cursor\\workspaces\\solidity-learn\\task3\\test\\upgrade.test.js",
+          "file": "\\test\\upgrade.test.js",
+          "beforeHooks": [],
+          "afterHooks": [],
+          "tests": [
+            {
+              "title": "将拍卖代理升级到 V2 且保持状态",
+              "fullTitle": "UUPS 升级演示 将拍卖代理升级到 V2 且保持状态",
+              "timedOut": false,
+              "duration": 83,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "const [deployer, seller] = await ethers.getSigners();\n// NFT（部署并给卖家铸造 1 个）\nconst NFT = await ethers.getContractFactory(\"NFTUpgradeable\");\nconst nft = await upgrades.deployProxy(NFT, [\"DemoNFT\", \"DNFT\", \"https://base/\"], { initializer: \"initialize\" });\nawait nft.waitForDeployment();\nawait (await nft.safeMint(seller.address)).wait();\nconst tokenId = 1;\n// 实现合约 V1 与工厂\nconst ImplV1 = await ethers.getContractFactory(\"AuctionImplementation\");\nconst implV1 = await ImplV1.deploy();\nawait implV1.waitForDeployment();\nconst Factory = await ethers.getContractFactory(\"AuctionFactory\");\nconst factory = await Factory.deploy(await implV1.getAddress());\nawait factory.waitForDeployment();\n// 创建拍卖\nawait (await nft.connect(seller).approve(await factory.getAddress(), tokenId)).wait();\nconst tx = await factory.connect(seller).createAuction(await nft.getAddress(), tokenId, 60, 1, ethers.ZeroAddress);\nconst rc = await tx.wait();\nconst evt = rc.logs.find((l) => l.fragment && l.fragment.name === \"AuctionDeployed\");\nconst proxyAddr = evt.args[0];\nconst auction = await ethers.getContractAt(\"AuctionImplementation\", proxyAddr);\n// 设置喂价以允许出价\nconst Mock = await ethers.getContractFactory(\"MockV3Aggregator\");\nconst ethFeed = await Mock.deploy(8, 2000n * 10n ** 8n);\nawait ethFeed.waitForDeployment();\nawait (await factory.setAuctionPriceFeed(proxyAddr, ethers.ZeroAddress, await ethFeed.getAddress())).wait();\n// 出一笔价以产生状态\nawait (await auction.connect(deployer).bid(0, { value: ethers.parseEther(\"0.02\") })).wait();\n// 部署 V2 实现\nconst ImplV2 = await ethers.getContractFactory(\"AuctionImplementationV2\");\nconst implV2 = await ImplV2.deploy();\nawait implV2.waitForDeployment();\n// 通过工厂执行升级\nawait (await factory.upgradeAuction(proxyAddr, await implV2.getAddress())).wait();\n// 使用 V2 ABI 从代理读取版本\nconst auctionV2 = await ethers.getContractAt(\"AuctionImplementationV2\", proxyAddr);\nexpect(await auctionV2.version()).to.eq(\"V2\");\n// 升级后应保持：最高出价者 == deploy者\nconst state = await auction.auction();\nexpect(state.highestBidder).to.eq(deployer.address);",
+              "err": {},
+              "uuid": "ce655e97-f65d-474a-ad94-42edf28c3408",
+              "parentUUID": "937e447b-6f37-4c22-aacc-b36f01a53949",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "ce655e97-f65d-474a-ad94-42edf28c3408"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 83,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 60000
+        }
+      ],
+      "passes": [],
+      "failures": [],
+      "pending": [],
+      "skipped": [],
+      "duration": 0,
+      "root": true,
+      "rootEmpty": true,
+      "_timeout": 60000
+    }
+  ],
+  "meta": {
+    "mocha": {
+      "version": "10.8.2"
+    },
+    "mochawesome": {
+      "options": {
+        "quiet": true,
+        "reportFilename": "report",
+        "saveHtml": true,
+        "saveJson": true,
+        "consoleReporter": "spec",
+        "useInlineDiffs": false,
+        "code": true
+      },
+      "version": "7.1.4"
+    },
+    "marge": {
+      "options": {
+        "id": "default",
+        "reportDir": "reports/mochawesome",
+        "reportFilename": "report",
+        "quiet": true,
+        "overwrite": true,
+        "html": true,
+        "json": true
+      },
+      "version": "6.3.0"
+    }
+  }
+}
