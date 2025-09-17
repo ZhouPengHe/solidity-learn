@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("@chainlink/env-enc").config();
 
 require("@nomicfoundation/hardhat-ethers");
 require("@openzeppelin/hardhat-upgrades");
